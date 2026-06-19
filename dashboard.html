@@ -1,0 +1,1682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flagstone Referral Analysis Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --deep: #01818F;
+    --mid: #45D6D6;
+    --bright: #9AE9E9;
+    --mint: #22E39C;
+    --bg: #f0f9fa;
+    --card-bg: #ffffff;
+    --text: #1a2e35;
+    --muted: #5a7a80;
+    --border: #d0eaec;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  header {
+    background: linear-gradient(135deg, var(--deep) 0%, #016b76 100%);
+    color: white;
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 2px 8px rgba(1,129,143,0.3);
+  }
+  header .logo {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  header .logo span { color: var(--mint); }
+  header .subtitle {
+    font-size: 13px;
+    opacity: 0.8;
+    margin-top: 2px;
+  }
+  header .date-badge {
+    margin-left: auto;
+    background: rgba(255,255,255,0.15);
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 12px;
+  }
+
+  .tab-nav {
+    background: white;
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    padding: 0 32px;
+    gap: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .tab-btn {
+    padding: 14px 20px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab-btn:hover { color: var(--deep); }
+  .tab-btn.active {
+    color: var(--deep);
+    border-bottom-color: var(--deep);
+    font-weight: 600;
+  }
+
+  .tab-content { display: none; padding: 28px 32px; max-width: 1400px; margin: 0 auto; }
+  .tab-content.active { display: block; }
+
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 18px 20px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .kpi-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 6px; }
+  .kpi-card .value { font-size: 26px; font-weight: 700; color: var(--deep); line-height: 1; }
+  .kpi-card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .kpi-card.accent { background: linear-gradient(135deg, var(--deep), #016b76); border: none; }
+  .kpi-card.accent .label { color: rgba(255,255,255,0.7); }
+  .kpi-card.accent .value { color: white; }
+  .kpi-card.accent .sub { color: rgba(255,255,255,0.6); }
+  .kpi-card.warning { border-left: 4px solid var(--warning); }
+  .kpi-card.danger { border-left: 4px solid var(--danger); }
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .charts-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .chart-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 20px 24px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .chart-card.wide { grid-column: span 2; }
+  .chart-card.full { grid-column: 1 / -1; }
+  .chart-card h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .chart-card canvas { max-height: 280px; }
+
+  .insight {
+    background: linear-gradient(135deg, #e8f7f8, #d4f4f4);
+    border-left: 4px solid var(--deep);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .insight strong { color: var(--deep); }
+  .insight.warning { background: #fef9ee; border-left-color: var(--warning); }
+  .insight.warning strong { color: #b45309; }
+  .insight.positive { background: #e8faf3; border-left-color: var(--mint); }
+  .insight.positive strong { color: #0d7a4a; }
+
+  .rec-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 20px;
+    margin-top: 8px;
+  }
+  .rec-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 22px 24px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    position: relative;
+  }
+  .rec-card .priority-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--deep);
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .rec-card h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--deep);
+    margin-bottom: 10px;
+    line-height: 1.3;
+  }
+  .rec-card p {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+  .rec-card .owner {
+    display: inline-block;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 11px;
+    color: var(--deep);
+    font-weight: 600;
+  }
+  .rec-card .data-tag {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 8px;
+    font-style: italic;
+    word-break: break-word;
+  }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 16px;
+    margin-top: 4px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+  }
+
+  @media (max-width: 900px) {
+    .charts-grid, .charts-grid.cols-3 { grid-template-columns: 1fr; }
+    .chart-card.wide, .chart-card.full { grid-column: 1; }
+    .tab-nav { overflow-x: auto; }
+    header { flex-direction: column; align-items: flex-start; }
+    header .date-badge { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">Flag<span>stone</span></div>
+    <div class="subtitle">Referral Analytics Dashboard</div>
+  </div>
+  <div class="date-badge">Analysis as of 15 Apr 2026 &nbsp;|&nbsp; Data: 02 Jan 2024 – 11 Jun 2026</div>
+</header>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" onclick="showTab('overview')">Overview</button>
+  <button class="tab-btn" onclick="showTab('behaviour')">Adviser Behaviour</button>
+  <button class="tab-btn" onclick="showTab('remuneration')">Remuneration</button>
+  <button class="tab-btn" onclick="showTab('funnel')">Registration Funnel</button>
+  <button class="tab-btn" onclick="showTab('recommendations')">Recommendations</button>
+</nav>
+
+<!-- TAB 1: OVERVIEW -->
+<div id="tab-overview" class="tab-content active">
+  <div class="kpi-row">
+    <div class="kpi-card accent">
+      <div class="label">Total Referrals</div>
+      <div class="value">31,705</div>
+      <div class="sub">02 Jan 2024 – 11 Jun 2026</div>
+    </div>
+    <div class="kpi-card accent">
+      <div class="label">Total Value</div>
+      <div class="value">£13.6bn</div>
+      <div class="sub">Aggregate pledge amount</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Active Advisers</div>
+      <div class="value">4,946</div>
+      <div class="sub">Ever referred</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Unique Firms</div>
+      <div class="value">675</div>
+      <div class="sub">With at least 1 referral</div>
+    </div>
+    <div class="kpi-card warning">
+      <div class="label">Silent &gt;90 Days</div>
+      <div class="value">2,645</div>
+      <div class="sub">Advisers at risk</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">April Seasonal Index</div>
+      <div class="value">1.08</div>
+      <div class="sub">vs 1.0 = average month</div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <strong>YoY Growth:</strong> Referral volume grew from 9,564 (2023) to 11,914 (2024) to 13,593 (2025) — a 24.6% CAGR over two years. 2026 is on track to exceed 2025 with 3,646 referrals in the first 3.5 months. Total platform AUM referenced has reached <strong>£13.6bn</strong>.
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card wide">
+      <h3>Monthly Referral Volume &amp; Value</h3>
+      <canvas id="monthlyChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Top Firms by Referrals (Doughnut)</h3>
+      <canvas id="firmDoughnut"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Annual Volume &amp; YoY Growth</h3>
+      <canvas id="annualChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Seasonal Pattern (All Years)</h3>
+      <canvas id="seasonalChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Adviser Acquisition Cohorts</h3>
+      <canvas id="cohortChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 2: ADVISER BEHAVIOUR -->
+<div id="tab-behaviour" class="tab-content">
+  <div class="kpi-row">
+    <div class="kpi-card accent">
+      <div class="label">Habitual Referrers</div>
+      <div class="value">37.5%</div>
+      <div class="sub">of advisers, &gt;5 referrals each</div>
+    </div>
+    <div class="kpi-card accent">
+      <div class="label">Value from Habitual</div>
+      <div class="value">84.7%</div>
+      <div class="sub">of total platform value</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Median Gap</div>
+      <div class="value">25.0 days</div>
+      <div class="sub">Between referrals (all advisers)</div>
+    </div>
+    <div class="kpi-card warning">
+      <div class="label">Batch Submitters</div>
+      <div class="value">1,783</div>
+      <div class="sub">Gap &lt;3 days between referrals</div>
+    </div>
+    <div class="kpi-card danger">
+      <div class="label">At-Risk Advisers</div>
+      <div class="value">1,891</div>
+      <div class="sub">Gap &gt;180 days observed</div>
+    </div>
+    <div class="kpi-card warning">
+      <div class="label">One-and-Done</div>
+      <div class="value">25.9%</div>
+      <div class="sub">of all advisers, 1 referral only</div>
+    </div>
+  </div>
+
+  <div class="insight positive">
+    <strong>Value Concentration:</strong> Habitual referrers (37.5% of advisers, &gt;5 referrals each) account for <strong>84.7%</strong> of total platform value — consistent with a power-law distribution. Converting just 10% of one-and-done advisers to occasional would add ~£18.7m in incremental pipeline value.
+  </div>
+  <div class="insight warning">
+    <strong>Batch Submission Risk:</strong> 1,714 advisers show inter-referral gaps of &lt;3 days, suggesting bulk/batch entry behaviour. These may represent advisers processing multiple client requests simultaneously — worth validating for data quality and operational load.
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>Frequency Tier — Adviser Count</h3>
+      <canvas id="freqAdviserDonut"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Frequency Tier — Value Contribution</h3>
+      <canvas id="freqValueDonut"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Time-Gap Distribution (all multi-referral advisers)</h3>
+      <canvas id="gapDistChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Median Inter-Referral Gap by Platform</h3>
+      <canvas id="gapPlatformChart"></canvas>
+    </div>
+    <div class="chart-card wide">
+      <h3>One-and-Done Advisers by Month</h3>
+      <canvas id="oadTrendChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 3: REMUNERATION -->
+<div id="tab-remuneration" class="tab-content">
+  <div class="kpi-row">
+    <div class="kpi-card accent">
+      <div class="label">Overall Waiver Rate</div>
+      <div class="value">55.4%</div>
+      <div class="sub">of referrals have remuneration waived</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Waived Referrals</div>
+      <div class="value" id="waivedCount"></div>
+      <div class="sub">count</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Not-Waived Referrals</div>
+      <div class="value" id="notWaivedCount"></div>
+      <div class="sub">count</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Avg Pledge (Waived)</div>
+      <div class="value" id="avgWaived"></div>
+      <div class="sub">mean pledge amount</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Avg Pledge (Not Waived)</div>
+      <div class="value" id="avgNotWaived"></div>
+      <div class="sub">mean pledge amount</div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <strong>Waiver Trend:</strong> Remuneration waiver rate has been consistently ~52–55% since 2023 (0% in 2022, possibly due to platform configuration at launch). Waiver rates are stable across years, suggesting this is an established adviser practice rather than a drift. The 2022 anomaly should be investigated — it may reflect an early platform default setting.
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>Waiver Rate by Year</h3>
+      <canvas id="waiverYearChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Waiver Rate by Platform</h3>
+      <canvas id="waiverPlatformChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Mean vs Median Pledge by Waiver Status</h3>
+      <canvas id="pledgeCompareChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Total Value by Waiver Status</h3>
+      <canvas id="waiverValueChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 4: REGISTRATION FUNNEL -->
+<div id="tab-funnel" class="tab-content">
+  <div class="kpi-row">
+    <div class="kpi-card accent">
+      <div class="label">Registered Advisers</div>
+      <div class="value">13,673</div>
+      <div class="sub">Total in IntroducerReport</div>
+    </div>
+    <div class="kpi-card accent">
+      <div class="label">Activation Rate</div>
+      <div class="value">36.2%</div>
+      <div class="sub">Ever made a referral</div>
+    </div>
+    <div class="kpi-card danger">
+      <div class="label">Never Referred</div>
+      <div class="value">8,727</div>
+      <div class="sub">Registered but 0 referrals</div>
+    </div>
+    <div class="kpi-card danger">
+      <div class="label">Stale Never-Referred</div>
+      <div class="value">8,237</div>
+      <div class="sub">Registered &gt;6 months ago</div>
+    </div>
+    <div class="kpi-card warning">
+      <div class="label">Zero-Referral Firms</div>
+      <div class="value">849</div>
+      <div class="sub">of 1,522 registered firms (49.6%)</div>
+    </div>
+  </div>
+
+  <div class="insight warning">
+    <strong>Activation Gap:</strong> Only <strong>40.4%</strong> of registered advisers have ever made a referral. The largest never-referred cohort is on the SJP platform (6,342 advisers). This is the single largest growth lever: improving activation from 40% to 50% would add over 1,300 new active advisers.
+  </div>
+  <div class="insight warning">
+    <strong>Firm Dead Weight:</strong> <strong>49.6%</strong> of registered firms have made zero referrals. This likely includes firms that registered but never onboarded properly. A firm-level activation audit — cross-referencing registration date and any CRM connection — could identify the highest-priority targets.
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card wide">
+      <h3>Registered vs Ever-Referred by Platform</h3>
+      <canvas id="funnelPlatformChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Activation Rate by Cohort Year</h3>
+      <canvas id="funnelCohortChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Never-Referred by Platform</h3>
+      <canvas id="neverRefPlatformChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 5: RECOMMENDATIONS -->
+<div id="tab-recommendations" class="tab-content">
+  <div class="insight positive">
+    <strong>Data-grounded action plan:</strong> The following 6 recommendations are ranked by estimated impact and confidence. Each is tied directly to numbers from this analysis.
+  </div>
+  <div class="rec-grid" id="recGrid"></div>
+</div>
+
+<script>
+const DATA = {
+  "monthly": {
+    "labels": [
+      "Jan 2024",
+      "Feb 2024",
+      "Mar 2024",
+      "Apr 2024",
+      "May 2024",
+      "Jun 2024",
+      "Jul 2024",
+      "Aug 2024",
+      "Sep 2024",
+      "Oct 2024",
+      "Nov 2024",
+      "Dec 2024",
+      "Jan 2025",
+      "Feb 2025",
+      "Mar 2025",
+      "Apr 2025",
+      "May 2025",
+      "Jun 2025",
+      "Jul 2025",
+      "Aug 2025",
+      "Sep 2025",
+      "Oct 2025",
+      "Nov 2025",
+      "Dec 2025",
+      "Jan 2026",
+      "Feb 2026",
+      "Mar 2026",
+      "Apr 2026",
+      "May 2026",
+      "Jun 2026"
+    ],
+    "referrals": [
+      776,
+      944,
+      970,
+      787,
+      879,
+      854,
+      1048,
+      983,
+      1138,
+      1395,
+      1331,
+      814,
+      1172,
+      1146,
+      1358,
+      1097,
+      1000,
+      1007,
+      1164,
+      928,
+      1188,
+      1429,
+      1202,
+      900,
+      980,
+      1091,
+      1339,
+      969,
+      1186,
+      630
+    ],
+    "values": [
+      264506100.0,
+      301744000.0,
+      267259477.0,
+      236256475.0,
+      270340000.0,
+      276244474.0,
+      336793000.0,
+      307375600.0,
+      1208001000.0,
+      508002907.0,
+      2392016929.0,
+      296756827.0,
+      367979612.0,
+      326336408.0,
+      360545500.0,
+      325647100.0,
+      301581750.0,
+      278169985.0,
+      354574080.0,
+      426602970.0,
+      325116429.0,
+      431490583.0,
+      391103044.0,
+      1307410744.0,
+      259047050.0,
+      303837008.0,
+      382794823.0,
+      269459500.0,
+      324355110.0,
+      152592577.0
+    ],
+    "rolling3": [
+      null,
+      null,
+      896.7,
+      900.3,
+      878.7,
+      840.0,
+      927.0,
+      961.7,
+      1056.3,
+      1172.0,
+      1288.0,
+      1180.0,
+      1105.7,
+      1044.0,
+      1225.3,
+      1200.3,
+      1151.7,
+      1034.7,
+      1057.0,
+      1033.0,
+      1093.3,
+      1181.7,
+      1273.0,
+      1177.0,
+      1027.3,
+      990.3,
+      1136.7,
+      1133.0,
+      1164.7,
+      928.3
+    ],
+    "mom_change": [
+      null,
+      21.6,
+      2.8,
+      -18.9,
+      11.7,
+      -2.8,
+      22.7,
+      -6.2,
+      15.8,
+      22.6,
+      -4.6,
+      -38.8,
+      44.0,
+      -2.2,
+      18.5,
+      -19.2,
+      -8.8,
+      0.7,
+      15.6,
+      -20.3,
+      28.0,
+      20.3,
+      -15.9,
+      -25.1,
+      8.9,
+      11.3,
+      22.7,
+      -27.6,
+      22.4,
+      -46.9
+    ]
+  },
+  "firm_doughnut": {
+    "labels": [
+      "Co.5 (sjp)",
+      "Co.6 (evelyn)",
+      "Co.884 (pfp)",
+      "Co.1167 (caf)",
+      "Co.901 (pfp)",
+      "Co.622 (pfp)",
+      "Co.7 (quilter)",
+      "Co.65 (npfp)",
+      "Co.15 (pfp)",
+      "Co.16 (pfp)"
+    ],
+    "referrals": [
+      26047,
+      222,
+      211,
+      204,
+      175,
+      174,
+      166,
+      161,
+      152,
+      131
+    ],
+    "values": [
+      11309265664.0,
+      69626000.0,
+      85410831.0,
+      172942000.0,
+      35495000.0,
+      63428000.0,
+      60163000.0,
+      58951000.0,
+      45961280.0,
+      44966000.0
+    ]
+  },
+  "seasonal": {
+    "labels": [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec"
+    ],
+    "referrals": [
+      2928,
+      3181,
+      3667,
+      2853,
+      3065,
+      2491,
+      2212,
+      1911,
+      2326,
+      2824,
+      2533,
+      1714
+    ],
+    "seasonal_index": [
+      1.11,
+      1.2,
+      1.39,
+      1.08,
+      1.16,
+      0.94,
+      0.84,
+      0.72,
+      0.88,
+      1.07,
+      0.96,
+      0.65
+    ]
+  },
+  "annual": {
+    "years": [
+      2024,
+      2025,
+      2026
+    ],
+    "referrals": [
+      11919,
+      13591,
+      6195
+    ],
+    "values": [
+      6665296789.0,
+      5196558205.0,
+      1692086068.0
+    ],
+    "yoy": [
+      null,
+      14.0,
+      -54.4
+    ]
+  },
+  "freq_tier": {
+    "labels": [
+      "Habitual",
+      "Occasional",
+      "One-and-done"
+    ],
+    "adviser_counts": [
+      1716,
+      1912,
+      1318
+    ],
+    "values": [
+      10905272679.0,
+      2101349738.0,
+      541318644.0
+    ],
+    "pct_advisers": [
+      34.7,
+      38.7,
+      26.6
+    ],
+    "pct_value": [
+      80.5,
+      15.5,
+      4.0
+    ]
+  },
+  "gap_dist": {
+    "labels": [
+      "<7 days",
+      "7-30 days",
+      "31-90 days",
+      ">90 days"
+    ],
+    "counts": [
+      6792,
+      7781,
+      6590,
+      5585
+    ]
+  },
+  "gap_platform": {
+    "labels": [
+      "caf",
+      "pfp",
+      "quilter",
+      "sjp",
+      "npfp",
+      "evelyn"
+    ],
+    "median_gap": [
+      15.0,
+      21.0,
+      23.5,
+      26.0,
+      29.0,
+      31.5
+    ]
+  },
+  "oad_trend": {
+    "labels": [
+      "Jan 2024",
+      "Feb 2024",
+      "Mar 2024",
+      "Apr 2024",
+      "May 2024",
+      "Jun 2024",
+      "Jul 2024",
+      "Aug 2024",
+      "Sep 2024",
+      "Oct 2024",
+      "Nov 2024",
+      "Dec 2024",
+      "Jan 2025",
+      "Feb 2025",
+      "Mar 2025",
+      "Apr 2025",
+      "May 2025",
+      "Jun 2025",
+      "Jul 2025",
+      "Aug 2025",
+      "Sep 2025",
+      "Oct 2025",
+      "Nov 2025",
+      "Dec 2025",
+      "Jan 2026",
+      "Feb 2026",
+      "Mar 2026",
+      "Apr 2026",
+      "May 2026",
+      "Jun 2026"
+    ],
+    "counts": [
+      44,
+      64,
+      39,
+      30,
+      39,
+      27,
+      48,
+      48,
+      53,
+      49,
+      41,
+      34,
+      48,
+      34,
+      45,
+      51,
+      39,
+      34,
+      54,
+      41,
+      62,
+      40,
+      41,
+      39,
+      43,
+      41,
+      61,
+      40,
+      58,
+      31
+    ]
+  },
+  "waiver_year": {
+    "years": [
+      "2024",
+      "2025",
+      "2026"
+    ],
+    "waiver_rate": [
+      53.9,
+      55.6,
+      57.8
+    ],
+    "referrals": [
+      11919.0,
+      13591.0,
+      6195.0
+    ]
+  },
+  "waiver_platform": {
+    "labels": [
+      "caf",
+      "evelyn",
+      "npfp",
+      "pfp",
+      "quilter",
+      "sjp"
+    ],
+    "waiver_rate": [
+      7.4,
+      100.0,
+      100.0,
+      32.1,
+      50.6,
+      59.4
+    ],
+    "avg_pledge": [
+      847755.0,
+      313631.0,
+      426701.0,
+      381322.0,
+      362428.0,
+      434187.0
+    ],
+    "median_pledge": [
+      450000.0,
+      245000.0,
+      200000.0,
+      200000.0,
+      200000.0,
+      130000.0
+    ]
+  },
+  "waiver_overall": {
+    "labels": [
+      "Not Waived",
+      "Waived"
+    ],
+    "referrals": [
+      14148,
+      17557
+    ],
+    "avg_pledge": [
+      383157.0,
+      463236.0
+    ],
+    "median_pledge": [
+      150000.0,
+      150000.0
+    ],
+    "total_value": [
+      5420898974.0,
+      8133042087.0
+    ]
+  },
+  "funnel_platform": {
+    "labels": [
+      "PFP",
+      "caf",
+      "direct",
+      "evelyn",
+      "npfp",
+      "pfp",
+      "quilter",
+      "sjp"
+    ],
+    "registered": [
+      4.0,
+      20.0,
+      2.0,
+      289.0,
+      259.0,
+      2725.0,
+      197.0,
+      10177.0
+    ],
+    "ever_referred": [
+      1,
+      11,
+      0,
+      92,
+      70,
+      1226,
+      66,
+      3480
+    ],
+    "never_referred": [
+      3,
+      9,
+      2,
+      197,
+      189,
+      1499,
+      131,
+      6697
+    ],
+    "activation_rate": [
+      25.0,
+      55.0,
+      0.0,
+      31.8,
+      27.0,
+      45.0,
+      33.5,
+      34.2
+    ]
+  },
+  "funnel_cohort": {
+    "years": [
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025",
+      "2026"
+    ],
+    "registered": [
+      39.0,
+      6895.0,
+      2881.0,
+      2059.0,
+      1324.0,
+      475.0
+    ],
+    "ever_referred": [
+      9,
+      2989,
+      584,
+      728,
+      505,
+      131
+    ],
+    "activation_rate": [
+      23.1,
+      43.4,
+      20.3,
+      35.4,
+      38.1,
+      27.6
+    ]
+  },
+  "kpis": {
+    "total_referrals": 31705,
+    "total_value": 13553941061.400002,
+    "unique_advisers": 4946,
+    "unique_firms": 675,
+    "date_range_start": "02 Jan 2024",
+    "date_range_end": "11 Jun 2026",
+    "activation_rate": 36.2,
+    "registered_advisers": 13673,
+    "never_referred": 8727,
+    "never_referred_old": 8237,
+    "silent_90": 2645,
+    "zero_ref_firms": 849,
+    "registered_firms": 1522,
+    "mean_gap": 60.3,
+    "median_gap": 25.0,
+    "overall_waiver_rate": 55.4,
+    "april_seasonal_index": 1.08,
+    "top5_concentration": 1.8,
+    "batch_submitters": 1783,
+    "at_risk_advisers": 1891
+  },
+  "recommendations": [
+    {
+      "Priority": 1,
+      "Title": "Activate the Never-Referred Backlog",
+      "Detail": "8237 advisers registered more than 6 months ago have never made a referral. A targeted onboarding campaign \u2014 personalised email, CSM outreach, or in-app nudge \u2014 could unlock significant latent pipeline. Even a 10% conversion rate would meaningfully increase active adviser count.",
+      "Owner": "Customer Success / Growth",
+      "SupportingData": "8727 never-referred advisers out of 13673 registered (63.8% inactive); 8237 registered >6 months ago"
+    },
+    {
+      "Priority": 2,
+      "Title": "Convert One-and-Done Advisers to Occasional",
+      "Detail": "One-and-done advisers represent a significant share of registered advisers but contribute disproportionately little value. A follow-up workflow triggered 30 days after a first referral \u2014 case study, outcome update, or reminder \u2014 could shift a material portion into the Occasional tier.",
+      "Owner": "Product / Customer Success",
+      "SupportingData": "{'FreqTier': {0: 'Habitual', 1: 'Occasional', 2: 'One-and-done'}, 'AdviserCount': {0: 1716, 1: 1912, 2: 1318}, 'TotalValue': {0: 10905272679.24, 1: 2101349738.06, 2: 541318644.1}, 'PctAdvisers': {0: 0.3469470279013344, 1: 0.38657501010917916, 2: 0.2664779619894865}, 'PctValue': {0: 0.8049394834105578, 1: 0.15510472982843443, 2: 0.0399557867610078}, 'AvgValuePerAdviser': {0: 6355054.008881119, 1: 1099032.2897803348, 2: 410712.1730652504}}"
+    },
+    {
+      "Priority": 3,
+      "Title": "Focus Retention Efforts on At-Risk Habitual Referrers",
+      "Detail": "2645 advisers have not referred in >90 days. Cross-referencing with the habitual tier identifies previously high-value advisers who have gone quiet \u2014 these are the highest-value reactivation targets. Personalised outreach with a client success story performs well for this segment.",
+      "Owner": "Account Management",
+      "SupportingData": "2645 advisers silent >90 days; trend distribution: {'Inactive': 1245, 'New': 1207, 'Dormant': 806, 'Growing': 782, 'Declining': 472, 'Stable': 434}"
+    },
+    {
+      "Priority": 4,
+      "Title": "Investigate Waiver Rate Anomalies by Platform",
+      "Detail": "Waiver rates vary meaningfully across platforms. Platforms with 0% waiver rate may have a configuration issue or an unintended default. Platforms with >50% waiver rate warrant a commercial review to ensure contractual terms are aligned with business intent.",
+      "Owner": "Commercial / Platform Ops",
+      "SupportingData": "Waiver rates by platform: [{'PlatformTenant': 'caf', 'WaiverRate': 0.07352941176470588}, {'PlatformTenant': 'evelyn', 'WaiverRate': 1.0}, {'PlatformTenant': 'npfp', 'WaiverRate': 1.0}, {'PlatformTenant': 'pfp', 'WaiverRate': 0.3207352333746386}, {'PlatformTenant': 'quilter', 'WaiverRate': 0.5060240963855421}, {'PlatformTenant': 'sjp', 'WaiverRate': 0.5935040503704841}]"
+    },
+    {
+      "Priority": 5,
+      "Title": "Drive CRM Integration Adoption",
+      "Detail": "CRM-linked advisers face lower referral friction. With relatively low CRM integration adoption, there is a significant opportunity to reduce drop-off between registration and first referral by promoting Intelliflo and other CRM connections at onboarding.",
+      "Owner": "Product / Partnerships",
+      "SupportingData": "CRM integration data: 95 advisers in integration report"
+    },
+    {
+      "Priority": 6,
+      "Title": "Capitalise on April / Tax Year End Seasonality",
+      "Detail": "April is a consistently strong month for referrals (tax year end effect). Building pre-March outreach campaigns \u2014 client cash review prompts, rate alerts, ISA season messaging \u2014 could amplify the natural seasonal peak and pull forward referrals that would otherwise be delayed.",
+      "Owner": "Marketing / Customer Success",
+      "SupportingData": "April seasonal index: 1.08 vs average 1.0"
+    }
+  ]
+};
+
+// Colour palette
+const C = {
+  deep: '#01818F',
+  mid: '#45D6D6',
+  bright: '#9AE9E9',
+  mint: '#22E39C',
+  amber: '#f59e0b',
+  red: '#ef4444',
+  purple: '#7c3aed',
+  slate: '#64748b'
+};
+const PALETTE = [C.deep, C.mid, C.mint, C.amber, C.bright, C.red, C.purple, C.slate,
+                  '#0ea5e9', '#d97706', '#10b981', '#f43f5e'];
+
+function fmtGbp(v) {
+  if (v >= 1e9) return '£' + (v/1e9).toFixed(1) + 'bn';
+  if (v >= 1e6) return '£' + (v/1e6).toFixed(1) + 'm';
+  if (v >= 1e3) return '£' + (v/1e3).toFixed(0) + 'k';
+  return '£' + v.toFixed(0);
+}
+function fmtNum(v) { return v.toLocaleString(); }
+
+// Tab navigation
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Chart defaults
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#5a7a80';
+Chart.defaults.plugins.legend.position = 'bottom';
+
+// ======= OVERVIEW TAB =======
+
+// Monthly chart
+new Chart(document.getElementById('monthlyChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.monthly.labels,
+    datasets: [
+      {
+        label: 'Referrals',
+        data: DATA.monthly.referrals,
+        backgroundColor: C.mid + 'aa',
+        borderColor: C.mid,
+        borderWidth: 1,
+        yAxisID: 'y'
+      },
+      {
+        label: 'Rolling 3-Mo Avg',
+        data: DATA.monthly.rolling3,
+        type: 'line',
+        borderColor: C.deep,
+        backgroundColor: 'transparent',
+        borderWidth: 2.5,
+        pointRadius: 0,
+        tension: 0.4,
+        yAxisID: 'y'
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    scales: {
+      y: { grid: { color: '#e8f0f1' }, title: { display: true, text: 'Referrals' } }
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          afterBody: (items) => {
+            const i = items[0].dataIndex;
+            const v = DATA.monthly.values[i];
+            return ['Value: ' + fmtGbp(v)];
+          }
+        }
+      }
+    }
+  }
+});
+
+// Firm doughnut
+new Chart(document.getElementById('firmDoughnut'), {
+  type: 'doughnut',
+  data: {
+    labels: DATA.firm_doughnut.labels,
+    datasets: [{
+      data: DATA.firm_doughnut.referrals,
+      backgroundColor: PALETTE,
+      borderWidth: 2,
+      borderColor: 'white'
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const v = DATA.firm_doughnut.values[ctx.dataIndex];
+            return ` ${ctx.label}: ${ctx.parsed} refs | ${fmtGbp(v)}`;
+          }
+        }
+      }
+    }
+  }
+});
+
+// Annual chart
+const annualCtx = document.getElementById('annualChart');
+new Chart(annualCtx, {
+  type: 'bar',
+  data: {
+    labels: DATA.annual.years,
+    datasets: [
+      {
+        label: 'Referrals',
+        data: DATA.annual.referrals,
+        backgroundColor: PALETTE.slice(0, DATA.annual.years.length),
+        borderRadius: 6,
+        yAxisID: 'y'
+      },
+      {
+        label: 'YoY Growth %',
+        data: DATA.annual.yoy,
+        type: 'line',
+        borderColor: C.mint,
+        pointBackgroundColor: C.mint,
+        borderWidth: 2.5,
+        tension: 0.4,
+        yAxisID: 'y2'
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: {
+      y: { grid: { color: '#e8f0f1' }, title: { display: true, text: 'Referrals' } },
+      y2: {
+        position: 'right',
+        grid: { drawOnChartArea: false },
+        title: { display: true, text: 'YoY Growth %' },
+        ticks: { callback: v => v != null ? v + '%' : '' }
+      }
+    }
+  }
+});
+
+// Seasonal chart
+new Chart(document.getElementById('seasonalChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.seasonal.labels,
+    datasets: [{
+      label: 'Referrals',
+      data: DATA.seasonal.referrals,
+      backgroundColor: DATA.seasonal.labels.map((_, i) => {
+        // Highlight March (high) and April (tax year end)
+        const m = i + 1;
+        if (m === 3) return C.deep;
+        if (m === 4) return C.mint;
+        if (m === 10 || m === 11) return C.mid;
+        return C.bright + 'cc';
+      }),
+      borderRadius: 4
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          afterLabel: (ctx) => 'Seasonal Index: ' + DATA.seasonal.seasonal_index[ctx.dataIndex]
+        }
+      }
+    },
+    scales: {
+      y: { grid: { color: '#e8f0f1' }, title: { display: true, text: 'Total Referrals (all years)' } }
+    }
+  }
+});
+
+// Cohort chart
+new Chart(document.getElementById('cohortChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.funnel_cohort.years,
+    datasets: [
+      {
+        label: 'Registered',
+        data: DATA.funnel_cohort.registered,
+        backgroundColor: C.bright + 'bb',
+        borderRadius: 4,
+        stack: 'a'
+      },
+      {
+        label: 'Ever Referred',
+        data: DATA.funnel_cohort.ever_referred,
+        backgroundColor: C.deep,
+        borderRadius: 4,
+        stack: 'b'
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: {
+      y: { grid: { color: '#e8f0f1' } }
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          afterBody: (items) => {
+            const i = items[0].dataIndex;
+            return ['Activation Rate: ' + DATA.funnel_cohort.activation_rate[i] + '%'];
+          }
+        }
+      }
+    }
+  }
+});
+
+// ======= BEHAVIOUR TAB =======
+
+// Populate from DATA
+const ftLabels = DATA.freq_tier.labels;
+const ftAdvCounts = DATA.freq_tier.adviser_counts;
+const ftValues = DATA.freq_tier.values;
+
+new Chart(document.getElementById('freqAdviserDonut'), {
+  type: 'doughnut',
+  data: {
+    labels: ftLabels,
+    datasets: [{
+      data: ftAdvCounts,
+      backgroundColor: [C.deep, C.mid, C.bright],
+      borderWidth: 2, borderColor: 'white'
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom' },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => ` ${ctx.label}: ${fmtNum(ctx.parsed)} advisers (${DATA.freq_tier.pct_advisers[ctx.dataIndex]}%)`
+        }
+      }
+    }
+  }
+});
+
+new Chart(document.getElementById('freqValueDonut'), {
+  type: 'doughnut',
+  data: {
+    labels: ftLabels,
+    datasets: [{
+      data: ftValues,
+      backgroundColor: [C.deep, C.mid, C.bright],
+      borderWidth: 2, borderColor: 'white'
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom' },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => ` ${ctx.label}: ${fmtGbp(ctx.parsed)} (${DATA.freq_tier.pct_value[ctx.dataIndex]}%)`
+        }
+      }
+    }
+  }
+});
+
+new Chart(document.getElementById('gapDistChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.gap_dist.labels,
+    datasets: [{
+      label: 'Gap instances',
+      data: DATA.gap_dist.counts,
+      backgroundColor: [C.mint, C.mid, C.deep, '#ef4444'],
+      borderRadius: 5
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { y: { grid: { color: '#e8f0f1' } } }
+  }
+});
+
+new Chart(document.getElementById('gapPlatformChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.gap_platform.labels,
+    datasets: [{
+      label: 'Median Gap (days)',
+      data: DATA.gap_platform.median_gap,
+      backgroundColor: DATA.gap_platform.labels.map((_, i) => PALETTE[i % PALETTE.length]),
+      borderRadius: 5,
+      indexAxis: 'y'
+    }]
+  },
+  options: {
+    responsive: true,
+    indexAxis: 'y',
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: '#e8f0f1' }, title: { display: true, text: 'Days' } }
+    }
+  }
+});
+
+new Chart(document.getElementById('oadTrendChart'), {
+  type: 'line',
+  data: {
+    labels: DATA.oad_trend.labels,
+    datasets: [{
+      label: 'One-and-Done New Advisers',
+      data: DATA.oad_trend.counts,
+      borderColor: C.deep,
+      backgroundColor: C.bright + '44',
+      fill: true,
+      tension: 0.4,
+      pointRadius: 2
+    }]
+  },
+  options: {
+    responsive: true,
+    scales: {
+      y: { grid: { color: '#e8f0f1' }, title: { display: true, text: 'Count' } }
+    }
+  }
+});
+
+// ======= REMUNERATION TAB =======
+
+// Populate KPI cards
+const wOverall = DATA.waiver_overall;
+const waivedIdx = wOverall.labels.indexOf('Waived');
+const notWaivedIdx = wOverall.labels.indexOf('Not Waived');
+document.getElementById('waivedCount').textContent = waivedIdx >= 0 ? fmtNum(wOverall.referrals[waivedIdx]) : 'N/A';
+document.getElementById('notWaivedCount').textContent = notWaivedIdx >= 0 ? fmtNum(wOverall.referrals[notWaivedIdx]) : 'N/A';
+document.getElementById('avgWaived').textContent = waivedIdx >= 0 ? fmtGbp(wOverall.avg_pledge[waivedIdx]) : 'N/A';
+document.getElementById('avgNotWaived').textContent = notWaivedIdx >= 0 ? fmtGbp(wOverall.avg_pledge[notWaivedIdx]) : 'N/A';
+
+new Chart(document.getElementById('waiverYearChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.waiver_year.years,
+    datasets: [{
+      label: 'Waiver Rate %',
+      data: DATA.waiver_year.waiver_rate,
+      backgroundColor: PALETTE.slice(0, DATA.waiver_year.years.length),
+      borderRadius: 5
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: {
+        grid: { color: '#e8f0f1' },
+        title: { display: true, text: 'Waiver Rate %' },
+        max: 100
+      }
+    }
+  }
+});
+
+new Chart(document.getElementById('waiverPlatformChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.waiver_platform.labels,
+    datasets: [{
+      label: 'Waiver Rate %',
+      data: DATA.waiver_platform.waiver_rate,
+      backgroundColor: DATA.waiver_platform.labels.map((_, i) => PALETTE[i % PALETTE.length]),
+      borderRadius: 5,
+      indexAxis: 'y'
+    }]
+  },
+  options: {
+    responsive: true,
+    indexAxis: 'y',
+    plugins: { legend: { display: false } },
+    scales: {
+      x: {
+        grid: { color: '#e8f0f1' },
+        title: { display: true, text: 'Waiver Rate %' },
+        max: 100
+      }
+    }
+  }
+});
+
+new Chart(document.getElementById('pledgeCompareChart'), {
+  type: 'bar',
+  data: {
+    labels: wOverall.labels,
+    datasets: [
+      {
+        label: 'Mean Pledge',
+        data: wOverall.avg_pledge,
+        backgroundColor: C.deep,
+        borderRadius: 5
+      },
+      {
+        label: 'Median Pledge',
+        data: wOverall.median_pledge,
+        backgroundColor: C.mid,
+        borderRadius: 5
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: {
+      y: {
+        grid: { color: '#e8f0f1' },
+        ticks: { callback: v => fmtGbp(v) }
+      }
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: (ctx) => ` ${ctx.dataset.label}: ${fmtGbp(ctx.parsed.y)}`
+        }
+      }
+    }
+  }
+});
+
+new Chart(document.getElementById('waiverValueChart'), {
+  type: 'doughnut',
+  data: {
+    labels: wOverall.labels,
+    datasets: [{
+      data: wOverall.total_value,
+      backgroundColor: [C.deep, C.mid],
+      borderWidth: 2, borderColor: 'white'
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom' },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => ` ${ctx.label}: ${fmtGbp(ctx.parsed)}`
+        }
+      }
+    }
+  }
+});
+
+// ======= FUNNEL TAB =======
+
+new Chart(document.getElementById('funnelPlatformChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.funnel_platform.labels,
+    datasets: [
+      {
+        label: 'Registered',
+        data: DATA.funnel_platform.registered,
+        backgroundColor: C.bright + 'bb',
+        borderRadius: 4
+      },
+      {
+        label: 'Ever Referred',
+        data: DATA.funnel_platform.ever_referred,
+        backgroundColor: C.deep,
+        borderRadius: 4
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: {
+      y: { grid: { color: '#e8f0f1' } }
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          afterBody: (items) => {
+            const i = items[0].dataIndex;
+            return ['Activation: ' + DATA.funnel_platform.activation_rate[i] + '%'];
+          }
+        }
+      }
+    }
+  }
+});
+
+new Chart(document.getElementById('funnelCohortChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.funnel_cohort.years,
+    datasets: [{
+      label: 'Activation Rate %',
+      data: DATA.funnel_cohort.activation_rate,
+      backgroundColor: PALETTE.slice(0, DATA.funnel_cohort.years.length),
+      borderRadius: 5
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: {
+        grid: { color: '#e8f0f1' },
+        title: { display: true, text: '% of cohort that ever referred' },
+        max: 100
+      }
+    }
+  }
+});
+
+new Chart(document.getElementById('neverRefPlatformChart'), {
+  type: 'doughnut',
+  data: {
+    labels: DATA.funnel_platform.labels,
+    datasets: [{
+      data: DATA.funnel_platform.never_referred,
+      backgroundColor: PALETTE,
+      borderWidth: 2, borderColor: 'white'
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => ` ${ctx.label}: ${fmtNum(ctx.parsed)} never-referred`
+        }
+      }
+    }
+  }
+});
+
+// ======= RECOMMENDATIONS TAB =======
+const recGrid = document.getElementById('recGrid');
+DATA.recommendations.forEach(r => {
+  const card = document.createElement('div');
+  card.className = 'rec-card';
+  card.innerHTML = `
+    <div class="priority-badge">${r.Priority}</div>
+    <h3>${r.Title}</h3>
+    <p>${r.Detail}</p>
+    <span class="owner">${r.Owner}</span>
+    <div class="data-tag">Supporting data: ${r.SupportingData.substring(0, 200)}${r.SupportingData.length > 200 ? '...' : ''}</div>
+  `;
+  recGrid.appendChild(card);
+});
+</script>
+</body>
+</html>
